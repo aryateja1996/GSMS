@@ -1,0 +1,33 @@
+abstract final class AppRoutes {
+  static const splash = '/';
+  static const mainShell = '/main';
+  static const login = '/login';
+  static const forgotPassword = '/forgot-password';
+  static const storeSetup = '/store-setup';
+  static const products = '/products';
+  static const productForm = '/products/form';
+  static const categories = '/categories';
+  static const customers = '/customers';
+  static const customerForm = '/customers/form';
+  static const khataStatement = '/khata/statement';
+  static const suppliers = '/suppliers';
+  static const purchaseForm = '/purchases/new';
+  static const expenses = '/expenses';
+  static const expenseForm = '/expenses/form';
+  static const cashReconciliation = '/cash/reconciliation';
+  static const notifications = '/notifications';
+  static const users = '/users';
+  static const auditLog = '/audit';
+  static const settings = '/settings';
+  static const syncQueue = '/sync/queue';
+  static const addStaff = '/users/add';
+  static const joinStore = '/join-store';
+
+  static const dashboard = '/dashboard';
+  static const pos = '/pos';
+  static const inventory = '/inventory';
+  static const purchases = '/purchases';
+  static const khata = '/khata';
+  static const reports = '/reports';
+  static const more = '/more';
+}

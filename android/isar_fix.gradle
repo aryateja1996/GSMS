@@ -1,0 +1,15 @@
+// Isar 3.1 ships compileSdk 30; AGP 8 + androidx startup needs API 31+ (android:attr/lStar).
+subprojects { subproject ->
+    subproject.afterEvaluate {
+        if (!subproject.plugins.hasPlugin("com.android.library")) {
+            return
+        }
+        if (subproject.name != "isar_flutter_libs") {
+            return
+        }
+        subproject.android {
+            namespace = "dev.isar.isar_flutter_libs"
+            compileSdkVersion 35
+        }
+    }
+}

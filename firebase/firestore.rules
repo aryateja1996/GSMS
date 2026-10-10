@@ -1,0 +1,183 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function setupConfig() {
+      return get(/databases/$(database)/documents/config/app);
+    }
+
+    function linkedStoreExists() {
+      return exists(/databases/$(database)/documents/config/app) &&
+        setupConfig().data.storeId is string &&
+        setupConfig().data.storeId.size() > 0 &&
+        exists(/databases/$(database)/documents/stores/$(setupConfig().data.storeId));
+    }
+
+    // Setup allowed when there is no valid, completed store (including orphaned config).
+    function setupOpen() {
+      return !exists(/databases/$(database)/documents/config/app) ||
+        setupConfig().data.setupComplete != true ||
+        !linkedStoreExists();
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userStoreId() {
+      return userDoc().data.storeId;
+    }
+
+    function sameStore(storeId) {
+      return isSignedIn() && userStoreId() == storeId;
+    }
+
+    function hasPermission(permission) {
+      return isSignedIn() &&
+        userDoc().data.permissions[permission] == true;
+    }
+
+    function isOwnerOrManager() {
+      return isSignedIn() &&
+        userDoc().data.role in ['owner', 'manager'];
+    }
+
+    match /config/app {
+      allow read: if true;
+      allow create: if isSignedIn() && setupOpen() &&
+        request.resource.data.setupComplete == true &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && setupOpen() &&
+        request.resource.data.setupComplete == true &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    function staffInviteJoin() {
+      let code = request.resource.data.inviteId;
+      let inv = get(/databases/$(database)/documents/storeInvites/$(code));
+      return code is string &&
+        inv.data.storeId == request.resource.data.storeId &&
+        inv.data.role == request.resource.data.role &&
+        inv.data.usedBy == null &&
+        inv.data.expiresAt > request.time;
+    }
+
+    match /storeInvites/{inviteId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isSignedIn() && hasPermission('canManageUsers') &&
+        isOwnerOrManager() &&
+        request.resource.data.storeId == userStoreId();
+      allow update: if isSignedIn() &&
+        resource.data.usedBy == null &&
+        request.resource.data.usedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == userId ||
+          (isOwnerOrManager() && sameStore(resource.data.storeId)));
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        (setupOpen() && request.resource.data.role == 'owner') ||
+        staffInviteJoin()
+      );
+      allow update: if isOwnerOrManager() &&
+        sameStore(request.resource.data.storeId);
+      allow delete: if false;
+    }
+
+    match /stores/{storeId} {
+      allow get: if sameStore(storeId) ||
+        (exists(/databases/$(database)/documents/config/app) &&
+          setupConfig().data.storeId == storeId);
+      allow list: if sameStore(storeId);
+      allow create: if isSignedIn() && setupOpen();
+      allow update: if hasPermission('canModifySettings') && sameStore(storeId);
+      allow delete: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create, update: if hasPermission('canEditProducts') &&
+        sameStore(request.resource.data.storeId);
+      allow delete: if false;
+    }
+
+    match /products/{productId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create, update: if hasPermission('canEditProducts') &&
+        sameStore(request.resource.data.storeId);
+      allow delete: if false;
+    }
+
+    match /customers/{customerId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create, update: if hasPermission('canManageKhata') &&
+        sameStore(request.resource.data.storeId);
+      allow delete: if false;
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create, update: if hasPermission('canCreatePurchase') &&
+        sameStore(request.resource.data.storeId);
+      allow delete: if false;
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if hasPermission('canCreatePurchase') &&
+        sameStore(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    match /stockMovements/{movementId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if hasPermission('canManageStock') &&
+        sameStore(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if sameStore(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if sameStore(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    match /sales/{saleId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if sameStore(request.resource.data.storeId);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /khataTransactions/{txId} {
+      allow read: if sameStore(resource.data.storeId);
+      allow create: if hasPermission('canManageKhata') &&
+        sameStore(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isOwnerOrManager() && sameStore(resource.data.storeId);
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
